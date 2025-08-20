@@ -1,5 +1,5 @@
-import { initializeApp, getApps } from 'firebase/app';
-import { getFirestore, collection, getDocs } from 'firebase/firestore';
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/firestore';
 import type { MenuItem } from '../types';
 
 // Your web app's Firebase configuration is now loaded securely from environment variables
@@ -10,15 +10,15 @@ if (!firebaseConfigString) {
 const firebaseConfig = JSON.parse(firebaseConfigString);
 
 
-// Initialize Firebase using the v9 modular syntax
-if (!getApps().length) {
-  initializeApp(firebaseConfig);
+// Initialize Firebase using the v8 compatibility syntax
+if (!firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
 }
-const db = getFirestore();
+const db = firebase.firestore();
 
 export const getMenuItems = async (): Promise<MenuItem[]> => {
-  const productsCollection = collection(db, 'products');
-  const productSnapshot = await getDocs(productsCollection);
+  const productsCollection = db.collection('products');
+  const productSnapshot = await productsCollection.get();
   const productList = productSnapshot.docs.map(doc => {
     const data = doc.data();
     return {
