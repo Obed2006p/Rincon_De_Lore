@@ -1,21 +1,20 @@
-import { initializeApp } from "firebase/app";
-import { getFirestore, collection, getDocs } from "firebase/firestore";
+import { initializeApp, getApps } from 'firebase/app';
+import { getFirestore, collection, getDocs } from 'firebase/firestore';
 import type { MenuItem } from '../types';
 
-// Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyCCuaPZhg4MtlTHV-JzDKEOiG1Lb3pVg4U",
-  authDomain: "rincon-de-lore.firebaseapp.com",
-  projectId: "rincon-de-lore",
-  storageBucket: "rincon-de-lore.appspot.com",
-  messagingSenderId: "1023054561981",
-  appId: "1:1023054561981:web:1a98228f741c1732cc2dd4",
-  measurementId: "G-619DPFRWGS"
-};
+// Your web app's Firebase configuration is now loaded securely from environment variables
+const firebaseConfigString = process.env.VITE_FIREBASE_CONFIG;
+if (!firebaseConfigString) {
+  throw new Error("Missing Firebase configuration. Please set VITE_FIREBASE_CONFIG in your environment variables.");
+}
+const firebaseConfig = JSON.parse(firebaseConfigString);
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+
+// Initialize Firebase using the v9 modular syntax
+if (!getApps().length) {
+  initializeApp(firebaseConfig);
+}
+const db = getFirestore();
 
 export const getMenuItems = async (): Promise<MenuItem[]> => {
   const productsCollection = collection(db, 'products');

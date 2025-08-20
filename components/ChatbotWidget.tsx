@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { GoogleGenerativeAI, type ChatSession } from "@google/generative-ai";
+import { GoogleGenAI, type Chat, type GenerateContentResponse } from "@google/genai";
 import type { MenuItem } from '../types';
 
 interface ChatbotWidgetProps {
@@ -27,7 +27,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ isOpen, onClose, menuItem
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [chat, setChat] = useState<ChatSession | null>(null);
+  const [chat, setChat] = useState<Chat | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const botAvatarUrl = "https://res.cloudinary.com/dsmzpsool/image/upload/v1755635609/Gemini_Generated_Image_p7w3l6p7w3l6p7w3-removebg-preview_bhq20q.png";
 
@@ -74,14 +74,18 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ isOpen, onClose, menuItem
   useEffect(() => {
     if (isOpen && menuItems.length > 0 && !chat) {
       try {
-        const genAI = new GoogleGenerativeAI(process.env.API_KEY);
-        const model = genAI.getGenerativeModel({
-          model: "gemini-2.5-flash",
-          systemInstruction: systemInstruction,
+        const apiKey = process.env.API_KEY;
+        if (!apiKey) {
+          throw new Error("Missing Gemini API Key. Please set API_KEY in your environment variables.");
+        }
+        const ai = new GoogleGenAI({apiKey});
+        const newChat = ai.chats.create({
+             model: 'gemini-2.5-flash',
+             config: {
+                systemInstruction: systemInstruction,
+             }
         });
-        const newChat = model.startChat({
-          history: [],
-        });
+        
         setChat(newChat);
         setMessages([{ sender: 'bot', text: '¡Qué onda! Soy Lore Chef, tu asistente personal. ¿Qué se te antoja pedir hoy?' }]);
       } catch (error) {
@@ -99,14 +103,15 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ isOpen, onClose, menuItem
     if (!inputValue.trim() || !chat || isLoading) return;
 
     const userMessage: Message = { sender: 'user', text: inputValue };
+
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
     setIsLoading(true);
 
     try {
-      const result = await chat.sendMessage(userMessage.text);
-      const response = result.response;
-      const botResponseText = response.text().trim();
+      const result: GenerateContentResponse = await chat.sendMessage({ message: userMessage.text });
+      const botResponseText = result.text.trim();
+
 
       if (botResponseText.startsWith('{') && botResponseText.endsWith('}')) {
         try {
