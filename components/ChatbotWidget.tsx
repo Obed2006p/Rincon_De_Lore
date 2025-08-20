@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { GoogleGenAI, type Chat, type GenerateContentResponse } from "@google/genai";
 import type { MenuItem } from '../types';
 
 interface ChatbotWidgetProps {
@@ -27,7 +26,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ isOpen, onClose, menuItem
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [chat, setChat] = useState<Chat | null>(null);
+  const [chat, setChat] = useState<any | null>(null); // Use 'any' as Chat type is now loaded dynamically
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const botAvatarUrl = "https://res.cloudinary.com/dsmzpsool/image/upload/v1755635609/Gemini_Generated_Image_p7w3l6p7w3l6p7w3-removebg-preview_bhq20q.png";
 
@@ -72,28 +71,41 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ isOpen, onClose, menuItem
   }, [menuItems]);
 
   useEffect(() => {
-    if (isOpen && menuItems.length > 0 && !chat) {
-      try {
-        const apiKey = process.env.API_KEY;
-        if (!apiKey) {
-          throw new Error("Missing Gemini API Key. Please set API_KEY in your environment variables.");
+    const initializeChat = async () => {
+      if (isOpen && menuItems.length > 0 && !chat) {
+        try {
+          const apiKey = (typeof process !== 'undefined' && process.env?.API_KEY) ? process.env.API_KEY : undefined;
+
+          if (!apiKey) {
+            throw new Error("Missing Gemini API Key. Please set the API_KEY environment variable.");
+          }
+
+          // Dynamically import the library only when needed.
+          // This prevents the library's code from running on initial page load
+          // and crashing the app in a build-less browser environment.
+          const { GoogleGenAI } = await import('@google/genai');
+          
+          const ai = new GoogleGenAI({ apiKey });
+          const newChat = ai.chats.create({
+            model: 'gemini-2.5-flash',
+            config: {
+              systemInstruction: systemInstruction,
+            }
+          });
+          
+          setChat(newChat);
+          setMessages([{ sender: 'bot', text: '¡Qué onda! Soy Lore Chef, tu asistente personal. ¿Qué se te antoja pedir hoy?' }]);
+
+        } catch (error) {
+          console.error("Failed to initialize Gemini Chat:", error);
+          setMessages([{ sender: 'bot', text: 'Hubo un problema conectando con mi cerebro. Intenta de nuevo más tarde.' }]);
         }
-        const ai = new GoogleGenAI({apiKey});
-        const newChat = ai.chats.create({
-             model: 'gemini-2.5-flash',
-             config: {
-                systemInstruction: systemInstruction,
-             }
-        });
-        
-        setChat(newChat);
-        setMessages([{ sender: 'bot', text: '¡Qué onda! Soy Lore Chef, tu asistente personal. ¿Qué se te antoja pedir hoy?' }]);
-      } catch (error) {
-          console.error("Failed to initialize Gemini:", error);
-          setMessages([{sender: 'bot', text: 'Hubo un problema conectando con mi cerebro. Intenta de nuevo más tarde.'}])
       }
-    }
+    };
+
+    initializeChat();
   }, [isOpen, menuItems, chat, systemInstruction]);
+
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -109,7 +121,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ isOpen, onClose, menuItem
     setIsLoading(true);
 
     try {
-      const result: GenerateContentResponse = await chat.sendMessage({ message: userMessage.text });
+      const result: any = await chat.sendMessage({ message: userMessage.text });
       const botResponseText = result.text.trim();
 
 
