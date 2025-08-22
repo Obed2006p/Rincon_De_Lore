@@ -8,7 +8,7 @@ import { db } from '../firebase';
  */
 export const getMenuItems = async (): Promise<MenuItem[]> => {
   try {
-    const menuItemsCollectionRef = db.collection('menuItems');
+    const menuItemsCollectionRef = db.collection('products');
     const q = menuItemsCollectionRef.orderBy('name', 'asc');
     const menuSnapshot = await q.get();
     

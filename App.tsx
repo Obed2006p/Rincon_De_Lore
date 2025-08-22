@@ -217,7 +217,7 @@ const App: React.FC = () => {
           <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-6 rounded-lg shadow-md max-w-2xl mx-auto">
             <h3 className="text-2xl font-bold mb-2"><i className="fas fa-exclamation-triangle mr-3"></i>Error al Cargar el Menú</h3>
             <p className="text-lg mb-4">{menuError}</p>
-            <p className="text-md">Por favor, verifica que la base de datos de Firestore esté configurada correctamente y que las reglas de seguridad permitan la lectura de la colección 'menuItems'.</p>
+            <p className="text-md">Por favor, verifica que la base de datos de Firestore esté configurada correctamente y que las reglas de seguridad permitan la lectura de la colección 'products'.</p>
           </div>
         </div>
       );
