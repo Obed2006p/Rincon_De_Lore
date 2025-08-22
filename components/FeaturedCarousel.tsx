@@ -93,7 +93,7 @@ const FeaturedCarousel: React.FC<FeaturedCarouselProps> = ({ items }) => {
       {/* Left Arrow */}
       <button 
         onClick={prevSlide}
-        className="absolute top-1/2 -translate-y-1/2 left-5 text-2xl rounded-full p-2 bg-black/30 text-white cursor-pointer group-hover:bg-black/50 transition-all duration-300 opacity-0 group-hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-white"
+        className="absolute top-1/2 -translate-y-1/2 left-3 text-2xl rounded-full p-2 bg-black/20 text-white cursor-pointer transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-white md:bg-black/30 md:opacity-0 md:group-hover:opacity-100 md:group-hover:bg-black/50"
         aria-label="Previous slide"
       >
         &#10094;
@@ -101,7 +101,7 @@ const FeaturedCarousel: React.FC<FeaturedCarouselProps> = ({ items }) => {
       {/* Right Arrow */}
       <button 
         onClick={nextSlide}
-        className="absolute top-1/2 -translate-y-1/2 right-5 text-2xl rounded-full p-2 bg-black/30 text-white cursor-pointer group-hover:bg-black/50 transition-all duration-300 opacity-0 group-hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-white"
+        className="absolute top-1/2 -translate-y-1/2 right-3 text-2xl rounded-full p-2 bg-black/20 text-white cursor-pointer transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-white md:bg-black/30 md:opacity-0 md:group-hover:opacity-100 md:group-hover:bg-black/50"
         aria-label="Next slide"
       >
         &#10095;

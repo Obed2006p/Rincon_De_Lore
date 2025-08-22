@@ -1,16 +1,21 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { MenuItem } from '../types';
+import { GoogleGenAI } from '@google/genai';
 
 interface ChatbotWidgetProps {
   isOpen: boolean;
   onClose: () => void;
-  menuItems: MenuItem[];
+  availableMenuItems: MenuItem[];
   onAddItemsToCart: (items: { name: string; quantity: number }[]) => void;
+  apiKey: string;
 }
 
 interface Message {
   sender: 'user' | 'bot';
   text: string;
+  link?: string;
+  linkText?: string;
 }
 
 const TypingIndicator: React.FC = () => (
@@ -22,16 +27,16 @@ const TypingIndicator: React.FC = () => (
   </div>
 );
 
-const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ isOpen, onClose, menuItems, onAddItemsToCart }) => {
+const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ isOpen, onClose, availableMenuItems, onAddItemsToCart, apiKey }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [chat, setChat] = useState<any | null>(null); // Use 'any' as Chat type is now loaded dynamically
+  const [chat, setChat] = useState<any | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const botAvatarUrl = "https://res.cloudinary.com/dsmzpsool/image/upload/v1755635609/Gemini_Generated_Image_p7w3l6p7w3l6p7w3-removebg-preview_bhq20q.png";
 
   const systemInstruction = useMemo(() => {
-    const menuForAI = menuItems.map(item => ({
+    const menuForAI = availableMenuItems.map(item => ({
       id: item.id,
       name: item.name,
       description: item.description,
@@ -42,49 +47,45 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ isOpen, onClose, menuItem
     return `# TU PERSONA Y OBJETIVO
 - Eres 'Asistente Lore Chef', el alma digital del restaurante 'El rincón de Lore'.
 - Tu estilo es relajado, amigable y con un toque chilango (CDMX), pero siempre claro y servicial. Usa frases como "¿Qué onda?", "¿Qué se te antoja?", "¡Órale va!", "¡De una!".
-- Tu misión principal es tomar los pedidos de los clientes de manera eficiente y agradable.
+- Tu misión es guiar al cliente a través de un proceso de 3 fases: tomar el pedido de comida, recolectar sus datos de entrega y finalmente generar un resumen para enviar por WhatsApp.
 - Eres un experto absoluto en el menú y no sabes nada de otros platillos.
 
-# TU BASE DE CONOCIMIENTO (EL MENÚ)
+# TU BASE DE CONOCIMIENTO (EL MENÚ DE HOY)
 - Solo puedes tomar pedidos de los siguientes platillos. Este es tu universo y no existe nada fuera de él.
 - Menú en formato JSON: ${JSON.stringify(menuForAI)}
 
-# REGLAS DE COMPORTAMIENTO (MINI-ALGORITMOS)
+# REGLAS DE COMPORTAMIENTO (PROCESO COMPLETO POR FASES)
 
-1.  **INICIO DE CONVERSACIÓN:**
-    -   Siempre saluda primero de forma amigable. Empieza con algo como: "¡Qué onda! Soy Lore Chef, tu asistente personal. ¿Qué se te antoja pedir hoy?"
+## FASE 1: Tomar el Pedido de Comida
+1.  **INICIO:** Siempre saluda primero. Ejemplo: "¡Qué onda! Soy Lore Chef. ¿Qué se te antoja pedir hoy?".
+2.  **TOMA DE PEDIDO:** Identifica platillos del menú, maneja ambigüedades ("¿Chilaquiles rojos o verdes?"), rechaza amablemente platillos fuera del menú ("¡Uy, esa no la manejo, pero te recomiendo...!") y sugiere bebidas o complementos.
+3.  **CONFIRMACIÓN DE COMIDA:** Antes de terminar esta fase, confirma el pedido de comida. Ejemplo: "Perfecto, entonces sería una Torta Ahogada y un agua de jamaica. ¿Es correcto?".
+4.  **OUTPUT DE FASE 1:** Cuando el cliente confirme, tu *siguiente* respuesta debe ser ÚNICAMENTE el JSON de acción. NADA DE TEXTO ADICIONAL.
+    -   **Esquema JSON:** \`{ "action": "add_to_cart", "items": [{ "name": "nombre exacto", "quantity": numero }] }\`
+5.  **TRANSICIÓN:** Inmediatamente después de enviar ese JSON, sin esperar respuesta, INICIA LA FASE 2.
 
-2.  **TOMA DE PEDIDO:**
-    -   **Identificar platillos:** Presta mucha atención a lo que escribe el cliente para identificar platillos del menú.
-    -   **Manejar ambigüedad:** Si un cliente pide algo genérico que tiene variantes (ej. "chilaquiles"), debes preguntar para aclarar. Por ejemplo: "¡Claro! ¿Los chilaquiles los quieres verdes o rojos?".
-    -   **Platillos fuera del menú:** Si te piden algo que NO está en el menú (ej. "pizza", "pozole"), responde amablemente que no lo manejas y redirige la conversación a una sugerencia del menú. Ejemplo: "¡Uy, qué crees! El pozole no lo manejamos, pero si buscas algo calientito y rico, nuestras enchiladas suizas están de diez. ¿Te laten?".
-    -   **Venta sugestiva (Upselling):** Sé proactivo. Si piden un platillo principal, sugiere una bebida o un complemento. Ejemplo: "¡Va que va! Una torta ahogada. ¿Te la preparamos con un agua de jamaica bien fría para que amarre?".
+## FASE 2: Recolectar Información de Entrega
+1.  **INICIO:** Comienza pidiendo el primer dato. Ejemplo: "¡Órale! Ya lo puse en el carrito. Ahora, para mandártelo, necesito unos datos. ¿Cuál es tu nombre completo?".
+2.  **RECOLECCIÓN SECUENCIAL:** Pide los siguientes datos UNO POR UNO, de forma conversacional:
+    -   Nombre completo
+    -   Celular (a 10 dígitos)
+    -   Calle y número
+    -   Código Postal
+    -   Correo electrónico
+    -   Referencias del domicilio (ej. "casa con portón negro", "entre calle X y Y")
+3.  **CONFIRMACIÓN DE DATOS:** Ve confirmando cada dato que te den. Ejemplo: "Va, 'Juan Pérez'. Ahora pásame tu cel...".
 
-3.  **FINALIZACIÓN Y FORMATO JSON (¡MUY IMPORTANTE!):**
-    -   **Confirmación:** Antes de generar el JSON, confirma el pedido con el cliente. Por ejemplo: "Perfecto, entonces sería una Torta Ahogada y un agua de jamaica. ¿Es correcto?".
-    -   **Generación del JSON:** Una vez que el cliente confirme su pedido (con "sí", "correcto", "así es", etc.), tu *siguiente* respuesta DEBE SER ÚNICAMENTE el objeto JSON. NO PONGAS NI UNA PALABRA MÁS. Ni "listo", ni "aquí tienes", NADA. Solo el JSON.
-    -   **Esquema del JSON:** { "action": "add_to_cart", "items": [{ "name": "nombre exacto del platillo", "quantity": numero }, { "name": "otro platillo", "quantity": numero }] }.
-    -   El \`name\` en el JSON debe ser EXACTAMENTE igual al que aparece en el menú que te proporcioné.
-
-4.  **CONVERSACIÓN GENERAL:**
-    -   Si el cliente solo platica o hace preguntas sobre el restaurante ("¿dónde están?", "¿a qué hora cierran?"), responde amablemente pero intenta siempre guiar la conversación de vuelta a tomar el pedido. Ejemplo: "Estamos en 123 Ocean Drive. ¡Cuando gustes caerle! ¿Te gustaría que te vaya tomando tu orden para cuando llegues?".`;
-  }, [menuItems]);
+## FASE 3: Confirmación Final y Envío
+1.  **RESUMEN TOTAL:** Cuando tengas los 6 datos de entrega, DEBES presentar un resumen completo de TODO: el pedido de comida (que debes recordar del contexto de la conversación) y todos los datos de entrega que recolectaste.
+2.  **CONFIRMACIÓN FINAL:** Pregunta por última vez si todo es correcto. Ejemplo: "A ver, checa si todo está bien: Pedido: 1 Torta Ahogada, 1 Agua de Jamaica. Entrega a: Juan Pérez, Cel: 5512345678, en Calle Falsa 123, CP 06000, etc. ¿Es correcto?".
+3.  **OUTPUT DE FASE 3:** Si el cliente confirma ("sí", "correcto", etc.), tu *siguiente* respuesta debe ser ÚNICAMENTE el JSON final. NO AÑADAS TEXTO ADICIONAL.
+    -   **Esquema JSON Final:** \`{ "action": "prepare_whatsapp_message", "order_items": [{ "name": "nombre exacto", "quantity": numero }], "customer_details": { "name": "...", "phone": "...", "street": "...", "postal_code": "...", "email": "...", "references": "..." } }\``;
+  }, [availableMenuItems]);
 
   useEffect(() => {
     const initializeChat = async () => {
-      if (isOpen && menuItems.length > 0 && !chat) {
+      if (isOpen && availableMenuItems.length > 0 && apiKey && !chat) {
         try {
-          const apiKey = (typeof process !== 'undefined' && process.env?.API_KEY) ? process.env.API_KEY : undefined;
-
-          if (!apiKey) {
-            throw new Error("Missing Gemini API Key. Please set the API_KEY environment variable.");
-          }
-
-          // Dynamically import the library only when needed.
-          // This prevents the library's code from running on initial page load
-          // and crashing the app in a build-less browser environment.
-          const { GoogleGenAI } = await import('@google/genai');
-          
           const ai = new GoogleGenAI({ apiKey });
           const newChat = ai.chats.create({
             model: 'gemini-2.5-flash',
@@ -104,7 +105,7 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ isOpen, onClose, menuItem
     };
 
     initializeChat();
-  }, [isOpen, menuItems, chat, systemInstruction]);
+  }, [isOpen, availableMenuItems, chat, systemInstruction, apiKey]);
 
 
   useEffect(() => {
@@ -124,16 +125,33 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ isOpen, onClose, menuItem
       const result: any = await chat.sendMessage({ message: userMessage.text });
       const botResponseText = result.text.trim();
 
-
       if (botResponseText.startsWith('{') && botResponseText.endsWith('}')) {
         try {
           const parsedResponse = JSON.parse(botResponseText);
           if (parsedResponse.action === 'add_to_cart' && Array.isArray(parsedResponse.items)) {
             onAddItemsToCart(parsedResponse.items);
-            
-            const itemNames = parsedResponse.items.map(i => `${i.quantity} ${i.name}`).join(', ');
-            const confirmationMessage: Message = { sender: 'bot', text: `¡Listo! Agregué ${itemNames} a tu carrito. Ya puedes verlo ahí. ¿Deseas algo más?` };
+            const itemNames = parsedResponse.items.map((i: any) => `${i.quantity} ${i.name}`).join(', ');
+            const confirmationMessage: Message = { sender: 'bot', text: `¡Listo! Agregué ${itemNames} a tu carrito. Ya puedes verlo ahí.` };
             setMessages(prev => [...prev, confirmationMessage]);
+          } else if (parsedResponse.action === 'prepare_whatsapp_message') {
+            const { order_items, customer_details } = parsedResponse;
+            const restaurantPhone = '5213148721913';
+
+            const orderSummary = order_items.map((item: any) => `- ${item.quantity}x ${item.name}`).join('\n');
+            
+            const fullMessage = `¡Hola! Quiero hacer el siguiente pedido desde la web:\n\n*MI PEDIDO:*\n${orderSummary}\n\n*DATOS DE ENTREGA:*\n*Nombre:* ${customer_details.name}\n*Celular:* ${customer_details.phone}\n*Dirección:* ${customer_details.street}, C.P. ${customer_details.postal_code}\n*Email:* ${customer_details.email}\n*Referencias:* ${customer_details.references}\n\n¡Gracias!`;
+
+            const encodedMessage = encodeURIComponent(fullMessage);
+            const whatsappUrl = `https://wa.me/${restaurantPhone}?text=${encodedMessage}`;
+
+            const finalBotMessage: Message = {
+                sender: 'bot',
+                text: '¡Excelente! Tu pedido está listo para ser enviado. Haz clic en el botón de abajo para confirmar y mandar tu orden por WhatsApp.',
+                link: whatsappUrl,
+                linkText: 'Enviar Pedido por WhatsApp'
+            };
+            setMessages(prev => [...prev, finalBotMessage]);
+
           } else {
             setMessages(prev => [...prev, { sender: 'bot', text: botResponseText }]);
           }
@@ -178,7 +196,17 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ isOpen, onClose, menuItem
               )}
               
               <div className={`max-w-xs lg:max-w-sm px-4 py-3 shadow-md ${msg.sender === 'user' ? 'bg-orange-500 text-white rounded-t-2xl rounded-bl-2xl' : 'bg-gray-700 text-gray-200 rounded-t-2xl rounded-br-2xl'}`}>
-                <p className="text-sm break-words">{msg.text}</p>
+                <p className="text-sm break-words whitespace-pre-wrap">{msg.text}</p>
+                 {msg.link && (
+                    <a
+                    href={msg.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 inline-flex items-center gap-2 bg-green-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-green-600 transition-all duration-300 transform hover:scale-105"
+                    >
+                    <i className="fab fa-whatsapp"></i> {msg.linkText}
+                    </a>
+                )}
               </div>
             </div>
           ))}

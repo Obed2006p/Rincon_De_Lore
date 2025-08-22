@@ -1,7 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
 
-const Hero: React.FC = () => {
+interface HeroProps {
+  onMenuClick: () => void;
+}
+
+const Hero: React.FC<HeroProps> = ({ onMenuClick }) => {
   const [isAnimated, setIsAnimated] = useState(false);
 
   useEffect(() => {
@@ -32,19 +36,19 @@ const Hero: React.FC = () => {
     >
       <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
         <div className="text-center text-white p-4">
-          <h1 className={`text-4xl md:text-6xl font-extrabold mb-4 drop-shadow-lg ${isAnimated ? 'animate-text-wave' : 'opacity-0'}`}>
+          <h1 className={`text-3xl sm:text-4xl md:text-6xl font-extrabold mb-4 drop-shadow-lg ${isAnimated ? 'animate-text-wave' : 'opacity-0'}`}>
             {renderAnimatedText(title)}
           </h1>
-          <p className={`text-lg md:text-2xl mb-8 max-w-2xl mx-auto drop-shadow-md ${isAnimated ? 'animate-text-wave' : 'opacity-0'}`}>
+          <p className={`text-base sm:text-lg md:text-2xl mb-8 max-w-2xl mx-auto drop-shadow-md ${isAnimated ? 'animate-text-wave' : 'opacity-0'}`}>
             {renderAnimatedText(subtitle, title.split(' ').length * 0.1)}
           </p>
           <div className="flex justify-center">
-            <a
-              href="#menu"
+            <button
+              onClick={onMenuClick}
               className="bg-orange-500 text-white font-bold py-3 px-8 rounded-full text-lg hover:bg-orange-600 transition-all duration-300 ease-in-out transform hover:scale-105 shadow-lg"
             >
               Ver Menú
-            </a>
+            </button>
           </div>
         </div>
       </div>
