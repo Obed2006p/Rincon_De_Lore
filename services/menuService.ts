@@ -1,3 +1,4 @@
+
 import type { MenuItem } from '../types';
 import { db } from '../firebase';
 
@@ -19,7 +20,7 @@ export const getMenuItems = async (): Promise<MenuItem[]> => {
     return menuList;
   } catch (error) {
     console.error("Error fetching menu items from Firestore:", error);
-    // In case of an error, return an empty array to prevent the app from crashing.
-    return [];
+    // Throw a more specific error to be caught by the UI
+    throw new Error("No se pudieron cargar los platillos desde la base de datos.");
   }
 };

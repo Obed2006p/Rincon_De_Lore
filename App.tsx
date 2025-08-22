@@ -22,25 +22,30 @@ const App: React.FC = () => {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [menuError, setMenuError] = useState<string | null>(null);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [hasShownVideoAutomatically, setHasShownVideoAutomatically] = useState(false);
   const [isChatbotOpen, setIsChatbotOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const [orderStatus, setOrderStatus] = useState<OrderStatus>('idle');
   const [currentPage, setCurrentPage] = useState<Page>('home');
-  
-  const apiKey = process.env.API_KEY;
 
   const featuredSectionRef = useRef<HTMLElement>(null);
   
   useEffect(() => {
     const fetchMenu = async () => {
       setIsLoading(true);
+      setMenuError(null);
       try {
         const items = await getMenuItems();
         setMenuItems(items);
       } catch (error) {
         console.error("Failed to fetch menu items:", error);
+        if (error instanceof Error) {
+          setMenuError(error.message);
+        } else {
+          setMenuError("An unknown error occurred while fetching the menu.");
+        }
       } finally {
         setIsLoading(false);
       }
@@ -201,6 +206,51 @@ const App: React.FC = () => {
     return false;
   });
 
+  const renderHomePageContent = () => {
+    if (isLoading) {
+      return <div className="text-center py-24"><i className="fas fa-spinner fa-spin text-5xl text-orange-500"></i></div>;
+    }
+
+    if (menuError) {
+      return (
+        <div className="container mx-auto px-4 py-16 text-center">
+          <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-6 rounded-lg shadow-md max-w-2xl mx-auto">
+            <h3 className="text-2xl font-bold mb-2"><i className="fas fa-exclamation-triangle mr-3"></i>Error al Cargar el Menú</h3>
+            <p className="text-lg mb-4">{menuError}</p>
+            <p className="text-md">Por favor, verifica que la base de datos de Firestore esté configurada correctamente y que las reglas de seguridad permitan la lectura de la colección 'menuItems'.</p>
+          </div>
+        </div>
+      );
+    }
+    
+    return (
+      <>
+        <Hero onMenuClick={() => handleNavigate('menu')} />
+        <section ref={featuredSectionRef} className="py-16 sm:py-24 bg-white">
+          <div className="container mx-auto px-4">
+            <div className="text-center mb-12">
+              <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 tracking-tight">Nuestras Especialidades</h2>
+              <p className="mt-4 text-lg md:text-xl text-gray-600 max-w-3xl mx-auto">
+                Descubre los platillos que nuestros clientes aman. Una selección especial de sabores que te transportarán.
+              </p>
+            </div>
+            <FeaturedCarousel items={featuredItems} />
+          </div>
+        </section>
+        
+        <div id="menu" className="container mx-auto px-4 py-16 sm:py-24">
+          <div className="text-center mb-12">
+            <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 tracking-tight">
+              <span className="block">Hoy, {dayOfWeek} tenemos:</span>
+            </h2>
+            <p className="mt-4 text-lg md:text-xl text-gray-600">Un menú especial para cada día, preparado con los ingredientes más frescos.</p>
+          </div>
+          <MenuList menuItems={dailyMenuItems} onAddToCart={handleOpenQuantityModal} />
+        </div>
+      </>
+    );
+  };
+
   const renderPage = () => {
     switch(currentPage) {
       case 'about':
@@ -209,41 +259,7 @@ const App: React.FC = () => {
         return <Contact />;
       case 'home':
       default:
-        return (
-          <>
-            <Hero onMenuClick={() => handleNavigate('menu')} />
-            <section ref={featuredSectionRef} className="py-16 sm:py-24 bg-white">
-                <div className="container mx-auto px-4">
-                    <div className="text-center mb-12">
-                        <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 tracking-tight">Nuestras Especialidades</h2>
-                        <p className="mt-4 text-lg md:text-xl text-gray-600 max-w-3xl mx-auto">
-                            Descubre los platillos que nuestros clientes aman. Una selección especial de sabores que te transportarán.
-                        </p>
-                    </div>
-                    {isLoading ? (
-                        <div className="text-center py-12"><i className="fas fa-spinner fa-spin text-4xl text-orange-500"></i></div>
-                    ) : (
-                        <FeaturedCarousel items={featuredItems} />
-                    )}
-                </div>
-            </section>
-            
-            <div id="menu" className="container mx-auto px-4 py-16 sm:py-24">
-              <div className="text-center mb-12">
-                <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 tracking-tight">
-                  <span className="block">Hoy, {dayOfWeek} tenemos:</span>
-                </h2>
-                <p className="mt-4 text-lg md:text-xl text-gray-600">Un menú especial para cada día, preparado con los ingredientes más frescos.</p>
-              </div>
-              
-              {isLoading ? (
-                <div className="text-center"><i className="fas fa-spinner fa-spin text-4xl text-orange-500"></i></div>
-              ) : (
-                <MenuList menuItems={dailyMenuItems} onAddToCart={handleOpenQuantityModal} />
-              )}
-            </div>
-          </>
-        );
+        return renderHomePageContent();
     }
   };
 
@@ -279,7 +295,7 @@ const App: React.FC = () => {
         onClose={() => setSelectedItem(null)}
         onAddToCart={handleConfirmAddToCart}
       />
-      {!isChatbotOpen && apiKey && (
+      {!isChatbotOpen && (
         <div className="fixed left-4 bottom-4 z-40 flex flex-col items-center group">
           <button
             onClick={toggleChatbot}
@@ -299,15 +315,12 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
-      {apiKey && (
-         <ChatbotWidget
-          isOpen={isChatbotOpen}
-          onClose={toggleChatbot}
-          availableMenuItems={dailyMenuItems}
-          onAddItemsToCart={handleAddItemsToCart}
-          apiKey={apiKey}
-        />
-      )}
+      <ChatbotWidget
+        isOpen={isChatbotOpen}
+        onClose={toggleChatbot}
+        availableMenuItems={dailyMenuItems}
+        onAddItemsToCart={handleAddItemsToCart}
+      />
     </div>
   );
 };

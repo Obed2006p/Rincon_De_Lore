@@ -1,14 +1,12 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { MenuItem } from '../types';
-import { GoogleGenAI } from '@google/genai';
 
 interface ChatbotWidgetProps {
   isOpen: boolean;
   onClose: () => void;
   availableMenuItems: MenuItem[];
   onAddItemsToCart: (items: { name: string; quantity: number }[]) => void;
-  apiKey: string;
 }
 
 interface Message {
@@ -27,11 +25,10 @@ const TypingIndicator: React.FC = () => (
   </div>
 );
 
-const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ isOpen, onClose, availableMenuItems, onAddItemsToCart, apiKey }) => {
+const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ isOpen, onClose, availableMenuItems, onAddItemsToCart }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [chat, setChat] = useState<any | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const botAvatarUrl = "https://res.cloudinary.com/dsmzpsool/image/upload/v1755635609/Gemini_Generated_Image_p7w3l6p7w3l6p7w3-removebg-preview_bhq20q.png";
 
@@ -81,90 +78,83 @@ const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({ isOpen, onClose, availabl
 3.  **OUTPUT DE FASE 3:** Si el cliente confirma ("sí", "correcto", etc.), tu *siguiente* respuesta debe ser ÚNICAMENTE el JSON final. NO AÑADAS TEXTO ADICIONAL.
     -   **Esquema JSON Final:** \`{ "action": "prepare_whatsapp_message", "order_items": [{ "name": "nombre exacto", "quantity": numero }], "customer_details": { "name": "...", "phone": "...", "street": "...", "postal_code": "...", "email": "...", "references": "..." } }\``;
   }, [availableMenuItems]);
-
+  
   useEffect(() => {
-    const initializeChat = async () => {
-      if (isOpen && availableMenuItems.length > 0 && apiKey && !chat) {
-        try {
-          const ai = new GoogleGenAI({ apiKey });
-          const newChat = ai.chats.create({
-            model: 'gemini-2.5-flash',
-            config: {
-              systemInstruction: systemInstruction,
-            }
-          });
-          
-          setChat(newChat);
-          setMessages([{ sender: 'bot', text: '¡Qué onda! Soy Lore Chef, tu asistente personal. ¿Qué se te antoja pedir hoy?' }]);
-
-        } catch (error) {
-          console.error("Failed to initialize Gemini Chat:", error);
-          setMessages([{ sender: 'bot', text: 'Hubo un problema conectando con mi cerebro. Intenta de nuevo más tarde.' }]);
-        }
-      }
-    };
-
-    initializeChat();
-  }, [isOpen, availableMenuItems, chat, systemInstruction, apiKey]);
-
+    // Show welcome message when the widget is opened for the first time in a session.
+    if (isOpen && messages.length === 0) {
+      setMessages([{ sender: 'bot', text: '¡Qué onda! Soy Lore Chef, tu asistente personal. ¿Qué se te antoja pedir hoy?' }]);
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || !chat || isLoading) return;
+    if (!inputValue.trim() || isLoading) return;
 
     const userMessage: Message = { sender: 'user', text: inputValue };
+    
+    // The messages to be sent to the API, without the initial hardcoded greeting.
+    const apiMessages = [...messages.slice(1), userMessage];
 
+    // Update UI with the user's message immediately for a responsive feel.
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
     setIsLoading(true);
 
     try {
-      const result: any = await chat.sendMessage({ message: userMessage.text });
-      const botResponseText = result.text.trim();
+      const apiResponse = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: apiMessages, systemInstruction }),
+      });
+
+      if (!apiResponse.ok) {
+          const errorData = await apiResponse.json();
+          throw new Error(errorData.error || `Request failed with status ${apiResponse.status}`);
+      }
+      
+      const data = await apiResponse.json();
+      const botResponseText = data.reply.trim();
+
+      let finalBotMessage: Message;
 
       if (botResponseText.startsWith('{') && botResponseText.endsWith('}')) {
         try {
           const parsedResponse = JSON.parse(botResponseText);
           if (parsedResponse.action === 'add_to_cart' && Array.isArray(parsedResponse.items)) {
             onAddItemsToCart(parsedResponse.items);
-            const itemNames = parsedResponse.items.map((i: any) => `${i.quantity} ${i.name}`).join(', ');
-            const confirmationMessage: Message = { sender: 'bot', text: `¡Listo! Agregué ${itemNames} a tu carrito. Ya puedes verlo ahí.` };
-            setMessages(prev => [...prev, confirmationMessage]);
+            const itemNames = parsedResponse.items.map((i: any) => `${i.quantity}x ${i.name}`).join(', ');
+            finalBotMessage = { sender: 'bot', text: `¡Listo! Agregué ${itemNames} a tu carrito. Ya puedes verlo si gustas.` };
           } else if (parsedResponse.action === 'prepare_whatsapp_message') {
             const { order_items, customer_details } = parsedResponse;
             const restaurantPhone = '5213148721913';
-
             const orderSummary = order_items.map((item: any) => `- ${item.quantity}x ${item.name}`).join('\n');
-            
             const fullMessage = `¡Hola! Quiero hacer el siguiente pedido desde la web:\n\n*MI PEDIDO:*\n${orderSummary}\n\n*DATOS DE ENTREGA:*\n*Nombre:* ${customer_details.name}\n*Celular:* ${customer_details.phone}\n*Dirección:* ${customer_details.street}, C.P. ${customer_details.postal_code}\n*Email:* ${customer_details.email}\n*Referencias:* ${customer_details.references}\n\n¡Gracias!`;
-
             const encodedMessage = encodeURIComponent(fullMessage);
             const whatsappUrl = `https://wa.me/${restaurantPhone}?text=${encodedMessage}`;
-
-            const finalBotMessage: Message = {
+            finalBotMessage = {
                 sender: 'bot',
-                text: '¡Excelente! Tu pedido está listo para ser enviado. Haz clic en el botón de abajo para confirmar y mandar tu orden por WhatsApp.',
+                text: '¡Excelente! Tu pedido está listo para ser enviado. Haz clic abajo para confirmar y mandar tu orden por WhatsApp.',
                 link: whatsappUrl,
                 linkText: 'Enviar Pedido por WhatsApp'
             };
-            setMessages(prev => [...prev, finalBotMessage]);
-
           } else {
-            setMessages(prev => [...prev, { sender: 'bot', text: botResponseText }]);
+            finalBotMessage = { sender: 'bot', text: botResponseText };
           }
         } catch (e) {
           console.error("JSON parsing error:", e);
-          setMessages(prev => [...prev, { sender: 'bot', text: botResponseText }]);
+          finalBotMessage = { sender: 'bot', text: botResponseText };
         }
       } else {
-        setMessages(prev => [...prev, { sender: 'bot', text: botResponseText }]);
+        finalBotMessage = { sender: 'bot', text: botResponseText };
       }
+      
+      setMessages(prev => [...prev, finalBotMessage]);
 
     } catch (error) {
-      console.error("Error sending message to Gemini:", error);
+      console.error("Error sending message to backend:", error);
       const errorMessage: Message = { sender: 'bot', text: "¡Ups! Se me cruzaron los cables. Por favor, intenta de nuevo." };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
