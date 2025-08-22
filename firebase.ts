@@ -1,5 +1,5 @@
-import firebase from "firebase/app";
-import "firebase/firestore";
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/firestore';
 
 // TODO: Reemplaza lo siguiente con la configuración de tu propio proyecto de Firebase.
 // Esta configuración se puede encontrar en la consola de Firebase en:
@@ -15,7 +15,9 @@ const firebaseConfig = {
 };
 
 // Inicializar Firebase
-const app = firebase.initializeApp(firebaseConfig);
+if (!firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+}
 
 // Inicializar Cloud Firestore y exportarlo para usarlo en otras partes de la aplicación
-export const db = app.firestore();
+export const db = firebase.firestore();

@@ -7,11 +7,15 @@ import { db } from '../firebase';
  */
 export const getMenuItems = async (): Promise<MenuItem[]> => {
   try {
-    const menuSnapshot = await db.collection('menuItems').orderBy('name', 'asc').get();
+    const menuItemsCollectionRef = db.collection('menuItems');
+    const q = menuItemsCollectionRef.orderBy('name', 'asc');
+    const menuSnapshot = await q.get();
+    
     const menuList = menuSnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     } as MenuItem));
+    
     return menuList;
   } catch (error) {
     console.error("Error fetching menu items from Firestore:", error);
